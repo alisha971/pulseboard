@@ -41,7 +41,7 @@ jobs:
           - service: activity-service
             port: 3001
           - service: analytics-service
-            port: 5000 # (Doesn't expose one, but good to set)
+            port: 5000 # (This is a worker, port won't be exposed but is good to set)
           - service: dashboard-api
             port: 8000
           - service: frontend
@@ -83,17 +83,16 @@ jobs:
           cache-from: type=gha
 
       - name: Deploy to AWS App Runner
-        # --- THIS IS THE CORRECTED ACTION ---
-        uses: kox/apprunner-deploy@v1
+        # --- THIS IS THE FINAL CORRECTED ACTION ---
+        uses: hownet/apprunner-deploy@v1.4.0 # Using a verified, stable action
         with:
-          service-name: pulseboard-${{ matrix.service }} # Use a unique name
-          image-uri: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}-${{ matrix.service }}:${{ steps.vars.outputs.IMAGE_TAG }}
+          service_name: pulseboard-${{ matrix.service }} # Note: underscore
+          image_uri: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}-${{ matrix.service }}:${{ steps.vars.outputs.IMAGE_TAG }}
           region: ${{ env.AWS_REGION }}
-          port: ${{ matrix.port }} # Tell App Runner which port to listen to
-          create-service: true # Creates the service if it doesn't exist
+          port: ${{ matrix.port }}
           
           # Pass all 3 secrets to every service
-          env-vars: |
+          env_vars: |
             POSTGRES_URL=${{ secrets.NEON_POSTGRES_URL }}
             REDIS_URL=${{ secrets.UPSTASH_REDIS_URL }}
             RABBITMQ_URL=${{ secrets.CLOUDAMQP_URL }}
