@@ -23,7 +23,7 @@ services:
       POSTGRES_PASSWORD: pulsepassword
       POSTGRES_DB: pulsedb
     ports:
-      - "5432:5432"
+      - "5555:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
       # You can mount a schema.sql file here to auto-init the DB
