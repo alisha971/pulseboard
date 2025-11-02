@@ -35,6 +35,7 @@ jobs:
     strategy:
       matrix:
         # Define all backend services we need to build and deploy
+        # Note: 'frontend' uses a separate Nginx build step, so we will deploy it as a service here.
         service: [activity-service, analytics-service, dashboard-api, frontend]
     
     steps:
@@ -55,6 +56,7 @@ jobs:
       - name: Define Service Variables
         id: vars
         run: |
+          # Determine the correct directory context for building the Docker image
           SERVICE_PATH="services/${{ matrix.service }}"
           if [ "${{ matrix.service }}" == "frontend" ]; then
             SERVICE_PATH="${{ matrix.service }}"
@@ -72,9 +74,10 @@ jobs:
           cache-from: type=gha
 
       - name: Deploy to AWS App Runner
-        uses: aws-actions/apprunner-deploy@v1
+        # --- THE FIX IS HERE ---
+        uses: aws-actions/configure-apprunner@v1
         with:
-          service-id: ${{ matrix.service }} # App Runner service name
+          service-id: pulseboard-${{ matrix.service }} # Use a unique name for each service
           image-repository: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}-${{ matrix.service }}:${{ steps.vars.outputs.IMAGE_TAG }}
           aws-region: ${{ env.AWS_REGION }}
           
@@ -84,6 +87,4 @@ jobs:
             REDIS_URL=${{ secrets.UPSTASH_REDIS_URL }}
             RABBITMQ_URL=${{ secrets.CLOUDAMQP_URL }}
 
-          # CRITICAL: This deploys the service for the very first time.
-          # It only runs if the service name does not exist yet.
           create-service-if-not-exists: true
