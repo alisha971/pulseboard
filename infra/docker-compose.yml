@@ -10,7 +10,6 @@
 #   - dashboard-api: Python API for serving metrics
 #   - frontend: React dashboard UI
 
-version: '3.8'
 
 services:
   # --- 1. Infrastructure ---
@@ -130,18 +129,17 @@ services:
       dockerfile: Dockerfile
     container_name: pulse-frontend
     ports:
-      - "3000:3000"
+      - "3000:80"
     environment:
       - NODE_ENV=development
-      # These URLs will be proxied by the React dev server to the backend services
-      - REACT_APP_ACTIVITY_API=http://localhost:3001
-      - REACT_APP_DASHBOARD_API=http://localhost:8000
+      # --- THIS IS THE KEY CHANGE ---
+      # We are providing the VITE_ prefixed variable that App.jsx needs
+      - VITE_DASHBOARD_API_URL=http://localhost:8000
     depends_on:
-      - activity-service
       - dashboard-api
     volumes:
       - ../frontend:/app
-      - /app/node_modules # Avoid overwriting node_modules with host mount
+      - /app/node_modules # Avoid overwriting node_modules
 
 # --- 4. Named Volumes for Data Persistence ---
 

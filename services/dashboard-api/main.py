@@ -65,9 +65,10 @@ def health_check():
 
 @app.get("/api/metrics/summary")
 def get_metrics_summary(request: Request):
-    global pg_conn  # <-- THE FIX: Declare we are using the global variable
-    cursor = None   # <-- THE FIX: Initialize cursor to None
-    cache_key = "metrics:summary"
+    global pg_conn
+    cursor = None
+    cache_key = "metrics:summary:v2" # Updated cache key
+    metrics = [] # Ensure metrics is initialized
 
     try:
         # 1. Check Redis Cache
@@ -75,7 +76,6 @@ def get_metrics_summary(request: Request):
         
         if cached_data:
             print("[Cache] HIT")
-            # Return cached data with HIT header
             return Response(
                 content=cached_data,
                 media_type="application/json",
@@ -85,29 +85,32 @@ def get_metrics_summary(request: Request):
         # 2. If Cache MISS, query database
         print("[Cache] MISS")
         
-        # Check connection and reconnect if needed
         if not pg_conn or pg_conn.closed:
             print("[PG] Reconnecting to PostgreSQL...")
             pg_conn = connect_postgres()
         
         cursor = pg_conn.cursor(cursor_factory=RealDictCursor)
+        
+        # --- NEW AGGREGATING QUERY ---
+        # This query now sums all metrics PER USER, 
+        # giving us a clean summary.
         cursor.execute("""
             SELECT 
                 user_id, 
-                metric_date, 
-                event_count
+                SUM(event_count) AS total_events,
+                SUM(tasks_created) AS total_tasks_created,
+                SUM(tasks_completed) AS total_tasks_completed
             FROM daily_user_metrics
-            ORDER BY metric_date DESC, event_count DESC
+            GROUP BY user_id
+            ORDER BY total_events DESC
         """)
         metrics = cursor.fetchall()
         
-        # Convert data to JSON (psycopg2 RealDictCursor handles date/datetime objects)
         json_metrics = json.dumps(metrics, default=str)
 
         # 3. Store in Redis Cache
         redis_conn.setex(cache_key, CACHE_TTL_SECONDS, json_metrics)
         
-        # Return data with MISS header
         return Response(
             content=json_metrics,
             media_type="application/json",
@@ -125,8 +128,6 @@ def get_metrics_summary(request: Request):
         print(f" [!] An unexpected error occurred: {e}")
         return Response(content=json.dumps({"error": str(e)}), status_code=500, media_type="application/json")
     finally:
-        # Ensure cursor is always closed
         if cursor:
             cursor.close()
-
 

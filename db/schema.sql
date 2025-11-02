@@ -16,6 +16,12 @@ CREATE TABLE IF NOT EXISTS daily_user_metrics (
     user_id VARCHAR(100) NOT NULL,
     metric_date DATE NOT NULL,
     event_count INT DEFAULT 0,
+    
+    -- --- NEW LINES ---
+    tasks_created INT DEFAULT 0,
+    tasks_completed INT DEFAULT 0,
+    -- --- END NEW LINES ---
+
     -- This constraint ensures we only have one row per user per day
     CONSTRAINT unique_user_date UNIQUE (user_id, metric_date)
 );
