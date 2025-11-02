@@ -1,0 +1,150 @@
+# This file defines your entire local development environment.
+# Run `docker-compose up --build` from the /infra directory.
+#
+# Services:
+#   - postgres: SQL database
+#   - redis: In-memory cache
+#   - rabbitmq: Message queue (with management UI at http://localhost:15672)
+#   - activity-service: Node.js API for creating events
+#   - analytics-service: Python worker for consuming events
+#   - dashboard-api: Python API for serving metrics
+#   - frontend: React dashboard UI
+
+version: '3.8'
+
+services:
+  # --- 1. Infrastructure ---
+
+  postgres:
+    image: postgres:15
+    container_name: pulse-postgres
+    environment:
+      POSTGRES_USER: pulseuser
+      POSTGRES_PASSWORD: pulsepassword
+      POSTGRES_DB: pulsedb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      # You can mount a schema.sql file here to auto-init the DB
+      # - ../db/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pulseuser -d pulsedb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: pulse-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: pulse-rabbitmq
+    ports:
+      - "5672:5672"   # AMQP port for services
+      - "15672:15672" # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: pulseuser
+      RABBITMQ_DEFAULT_PASS: pulsepassword
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --- 2. Backend Services ---
+
+  activity-service:
+    build:
+      context: ../services/activity-service
+      dockerfile: Dockerfile
+    container_name: pulse-activity-svc
+    ports:
+      - "3001:3001" # Host:Container
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      POSTGRES_URL: postgresql://pulseuser:pulsepassword@postgres:5432/pulsedb
+      RABBITMQ_URL: amqp://pulseuser:pulsepassword@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ../services/activity-service:/app
+      - /app/node_modules # Avoid overwriting node_modules with host mount
+
+  analytics-service:
+    build:
+      context: ../services/analytics-service
+      dockerfile: Dockerfile
+    container_name: pulse-analytics-svc
+    # This is a worker, so no ports are exposed
+    environment:
+      PYTHONUNBUFFERED: 1
+      POSTGRES_URL: postgresql://pulseuser:pulsepassword@postgres:5432/pulsedb
+      RABBITMQ_URL: amqp://pulseuser:pulsepassword@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ../services/analytics-service:/app
+
+  dashboard-api:
+    build:
+      context: ../services/dashboard-api
+      dockerfile: Dockerfile
+    container_name: pulse-dashboard-api
+    ports:
+      - "8000:8000"
+    environment:
+      PYTHONUNBUFFERED: 1
+      POSTGRES_URL: postgresql://pulseuser:pulsepassword@postgres:5432/pulsedb
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../services/dashboard-api:/app
+
+  # --- 3. Frontend Service ---
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: pulse-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      # These URLs will be proxied by the React dev server to the backend services
+      - REACT_APP_ACTIVITY_API=http://localhost:3001
+      - REACT_APP_DASHBOARD_API=http://localhost:8000
+    depends_on:
+      - activity-service
+      - dashboard-api
+    volumes:
+      - ../frontend:/app
+      - /app/node_modules # Avoid overwriting node_modules with host mount
+
+# --- 4. Named Volumes for Data Persistence ---
+
+volumes:
+  pg_data:
+  redis_data:

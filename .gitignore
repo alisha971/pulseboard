@@ -1,0 +1,25 @@
+# This is a comprehensive .gitignore for your project
+
+# --- Node.js (Frontend & Activity-Service) ---
+node_modules/
+.env
+.env.*
+npm-debug.log*
+
+# --- Python (Analytics-Service & Dashboard-API) ---
+__pycache__/
+*.pyc
+venv/
+*.env
+.pytest_cache/
+
+# --- Operating System ---
+.DS_Store
+Thumbs.db
+
+# --- IDEs ---
+.vscode/
+.idea/
+
+# --- Logs ---
+*.log
