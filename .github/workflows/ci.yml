@@ -1,4 +1,4 @@
-name: Deploy PulseBoard Backend to AWS App Runner
+name: Deploy PulseBoard Services to AWS App Runner
 
 on:
   push:
@@ -33,10 +33,19 @@ jobs:
     runs-on: ubuntu-latest
     needs: setup_ecr # Ensure ECR exists before trying to push containers
     strategy:
+      # This matrix builds and deploys all 4 services
       matrix:
-        # Define all backend services we need to build and deploy
-        # Note: 'frontend' uses a separate Nginx build step, so we will deploy it as a service here.
         service: [activity-service, analytics-service, dashboard-api, frontend]
+        # Define the port each service runs on INSIDE its container
+        include:
+          - service: activity-service
+            port: 3001
+          - service: analytics-service
+            port: 5000 # (Doesn't expose one, but good to set)
+          - service: dashboard-api
+            port: 8000
+          - service: frontend
+            port: 80 # (Nginx runs on port 80)
     
     steps:
       - name: Checkout Code
@@ -74,17 +83,18 @@ jobs:
           cache-from: type=gha
 
       - name: Deploy to AWS App Runner
-        # --- THE FIX IS HERE ---
-        uses: aws-actions/configure-apprunner@v1
+        # --- THIS IS THE CORRECTED ACTION ---
+        uses: kox/apprunner-deploy@v1
         with:
-          service-id: pulseboard-${{ matrix.service }} # Use a unique name for each service
-          image-repository: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}-${{ matrix.service }}:${{ steps.vars.outputs.IMAGE_TAG }}
-          aws-region: ${{ env.AWS_REGION }}
+          service-name: pulseboard-${{ matrix.service }} # Use a unique name
+          image-uri: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}-${{ matrix.service }}:${{ steps.vars.outputs.IMAGE_TAG }}
+          region: ${{ env.AWS_REGION }}
+          port: ${{ matrix.port }} # Tell App Runner which port to listen to
+          create-service: true # Creates the service if it doesn't exist
           
-          # --- Environment Variables (Secrets) ---
-          environment-variables: |
+          # Pass all 3 secrets to every service
+          env-vars: |
             POSTGRES_URL=${{ secrets.NEON_POSTGRES_URL }}
             REDIS_URL=${{ secrets.UPSTASH_REDIS_URL }}
             RABBITMQ_URL=${{ secrets.CLOUDAMQP_URL }}
 
-          create-service-if-not-exists: true
