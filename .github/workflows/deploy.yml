@@ -30,44 +30,49 @@ jobs:
     - name: Login to Amazon ECR
       uses: aws-actions/amazon-ecr-login@v2
 
+
     # --------------------------
-    # FRONTEND
+    # FRONTEND (correct path)
     # --------------------------
     - name: Build frontend image
       run: |
-        docker build -t pulseboard-frontend -f services/frontend/Dockerfile .
+        docker build -t pulseboard-frontend -f frontend/Dockerfile ./frontend
         docker tag pulseboard-frontend:latest $ECR_REGISTRY/pulseboard-frontend:latest
         docker push $ECR_REGISTRY/pulseboard-frontend:latest
+
 
     # --------------------------
     # DASHBOARD API
     # --------------------------
     - name: Build dashboard-api image
       run: |
-        docker build -t pulseboard-dashboard-api -f services/dashboard-api/Dockerfile .
+        docker build -t pulseboard-dashboard-api -f services/dashboard-api/Dockerfile ./services/dashboard-api
         docker tag pulseboard-dashboard-api:latest $ECR_REGISTRY/pulseboard-dashboard-api:latest
         docker push $ECR_REGISTRY/pulseboard-dashboard-api:latest
+
 
     # --------------------------
     # ACTIVITY SERVICE
     # --------------------------
     - name: Build activity-service image
       run: |
-        docker build -t pulseboard-activity-service -f services/activity-service/Dockerfile .
+        docker build -t pulseboard-activity-service -f services/activity-service/Dockerfile ./services/activity-service
         docker tag pulseboard-activity-service:latest $ECR_REGISTRY/pulseboard-activity-service:latest
         docker push $ECR_REGISTRY/pulseboard-activity-service:latest
 
+
     # --------------------------
-    # ANALYTICS WORKER
+    # ANALYTICS SERVICE
     # --------------------------
     - name: Build analytics-service image
       run: |
-        docker build -t pulseboard-analytics-service -f services/analytics-service/Dockerfile .
+        docker build -t pulseboard-analytics-service -f services/analytics-service/Dockerfile ./services/analytics-service
         docker tag pulseboard-analytics-service:latest $ECR_REGISTRY/pulseboard-analytics-service:latest
         docker push $ECR_REGISTRY/pulseboard-analytics-service:latest
 
+
     # --------------------------
-    # DEPLOY APP RUNNER SERVICES
+    # APP RUNNER DEPLOYMENTS
     # --------------------------
     - name: Deploy App Runner frontend
       run: |
