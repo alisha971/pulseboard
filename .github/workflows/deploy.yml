@@ -1,0 +1,106 @@
+name: Deploy PulseBoard
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ACCOUNT_ID: 165542950768
+  ECR_REGISTRY: 165542950768.dkr.ecr.us-east-1.amazonaws.com
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+        role-to-assume: ${{ secrets.ROLE_ARN }}
+        role-session-name: GitHubActionsSession
+
+    - name: Login to Amazon ECR
+      uses: aws-actions/amazon-ecr-login@v2
+
+    # --------------------------
+    # FRONTEND
+    # --------------------------
+    - name: Build frontend image
+      run: |
+        docker build -t pulseboard-frontend -f services/frontend/Dockerfile .
+        docker tag pulseboard-frontend:latest $ECR_REGISTRY/pulseboard-frontend:latest
+        docker push $ECR_REGISTRY/pulseboard-frontend:latest
+
+    # --------------------------
+    # DASHBOARD API
+    # --------------------------
+    - name: Build dashboard-api image
+      run: |
+        docker build -t pulseboard-dashboard-api -f services/dashboard-api/Dockerfile .
+        docker tag pulseboard-dashboard-api:latest $ECR_REGISTRY/pulseboard-dashboard-api:latest
+        docker push $ECR_REGISTRY/pulseboard-dashboard-api:latest
+
+    # --------------------------
+    # ACTIVITY SERVICE
+    # --------------------------
+    - name: Build activity-service image
+      run: |
+        docker build -t pulseboard-activity-service -f services/activity-service/Dockerfile .
+        docker tag pulseboard-activity-service:latest $ECR_REGISTRY/pulseboard-activity-service:latest
+        docker push $ECR_REGISTRY/pulseboard-activity-service:latest
+
+    # --------------------------
+    # ANALYTICS WORKER
+    # --------------------------
+    - name: Build analytics-service image
+      run: |
+        docker build -t pulseboard-analytics-service -f services/analytics-service/Dockerfile .
+        docker tag pulseboard-analytics-service:latest $ECR_REGISTRY/pulseboard-analytics-service:latest
+        docker push $ECR_REGISTRY/pulseboard-analytics-service:latest
+
+    # --------------------------
+    # DEPLOY APP RUNNER SERVICES
+    # --------------------------
+    - name: Deploy App Runner frontend
+      run: |
+        aws apprunner update-service \
+          --service-arn arn:aws:apprunner:us-east-1:${{ env.AWS_ACCOUNT_ID }}:service/pulseboard-frontend \
+          --source-configuration ImageRepository={
+              ImageIdentifier=$ECR_REGISTRY/pulseboard-frontend:latest,
+              ImageRepositoryType="ECR"
+          }
+
+    - name: Deploy App Runner dashboard API
+      run: |
+        aws apprunner update-service \
+          --service-arn arn:aws:apprunner:us-east-1:${{ env.AWS_ACCOUNT_ID }}:service/pulseboard-dashboard-api \
+          --source-configuration ImageRepository={
+              ImageIdentifier=$ECR_REGISTRY/pulseboard-dashboard-api:latest,
+              ImageRepositoryType="ECR"
+          }
+
+    - name: Deploy App Runner activity service
+      run: |
+        aws apprunner update-service \
+          --service-arn arn:aws:apprunner:us-east-1:${{ env.AWS_ACCOUNT_ID }}:service/pulseboard-activity-service \
+          --source-configuration ImageRepository={
+              ImageIdentifier=$ECR_REGISTRY/pulseboard-activity-service:latest,
+              ImageRepositoryType="ECR"
+          }
+
+    - name: Deploy App Runner analytics service
+      run: |
+        aws apprunner update-service \
+          --service-arn arn:aws:apprunner:us-east-1:${{ env.AWS_ACCOUNT_ID }}:service/pulseboard-analytics-service \
+          --source-configuration ImageRepository={
+              ImageIdentifier=$ECR_REGISTRY/pulseboard-analytics-service:latest,
+              ImageRepositoryType="ECR"
+          }
