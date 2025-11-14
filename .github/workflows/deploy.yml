@@ -14,32 +14,34 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
 
+    permissions:
+      id-token: write        # Required for GitHub OIDC
+      contents: read
+
     steps:
     - name: Checkout repo
       uses: actions/checkout@v3
 
+    # --------------------------
+    # AUTH WITH GITHUB OIDC
+    # --------------------------
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-1
         role-to-assume: ${{ secrets.ROLE_ARN }}
-        role-session-name: GitHubActionsSession
+        aws-region: us-east-1
 
     - name: Login to Amazon ECR
       uses: aws-actions/amazon-ecr-login@v2
 
-
     # --------------------------
-    # FRONTEND (correct path)
+    # FRONTEND
     # --------------------------
     - name: Build frontend image
       run: |
         docker build -t pulseboard-frontend -f frontend/Dockerfile ./frontend
         docker tag pulseboard-frontend:latest $ECR_REGISTRY/pulseboard-frontend:latest
         docker push $ECR_REGISTRY/pulseboard-frontend:latest
-
 
     # --------------------------
     # DASHBOARD API
@@ -50,7 +52,6 @@ jobs:
         docker tag pulseboard-dashboard-api:latest $ECR_REGISTRY/pulseboard-dashboard-api:latest
         docker push $ECR_REGISTRY/pulseboard-dashboard-api:latest
 
-
     # --------------------------
     # ACTIVITY SERVICE
     # --------------------------
@@ -59,7 +60,6 @@ jobs:
         docker build -t pulseboard-activity-service -f services/activity-service/Dockerfile ./services/activity-service
         docker tag pulseboard-activity-service:latest $ECR_REGISTRY/pulseboard-activity-service:latest
         docker push $ECR_REGISTRY/pulseboard-activity-service:latest
-
 
     # --------------------------
     # ANALYTICS SERVICE
@@ -70,42 +70,29 @@ jobs:
         docker tag pulseboard-analytics-service:latest $ECR_REGISTRY/pulseboard-analytics-service:latest
         docker push $ECR_REGISTRY/pulseboard-analytics-service:latest
 
-
     # --------------------------
-    # APP RUNNER DEPLOYMENTS
+    # DEPLOY TO APP RUNNER
     # --------------------------
     - name: Deploy App Runner frontend
       run: |
         aws apprunner update-service \
           --service-arn arn:aws:apprunner:us-east-1:${{ env.AWS_ACCOUNT_ID }}:service/pulseboard-frontend \
-          --source-configuration ImageRepository={
-              ImageIdentifier=$ECR_REGISTRY/pulseboard-frontend:latest,
-              ImageRepositoryType="ECR"
-          }
+          --source-configuration ImageRepository={ImageIdentifier=$ECR_REGISTRY/pulseboard-frontend:latest,ImageRepositoryType="ECR"}
 
     - name: Deploy App Runner dashboard API
       run: |
         aws apprunner update-service \
           --service-arn arn:aws:apprunner:us-east-1:${{ env.AWS_ACCOUNT_ID }}:service/pulseboard-dashboard-api \
-          --source-configuration ImageRepository={
-              ImageIdentifier=$ECR_REGISTRY/pulseboard-dashboard-api:latest,
-              ImageRepositoryType="ECR"
-          }
+          --source-configuration ImageRepository={ImageIdentifier=$ECR_REGISTRY/pulseboard-dashboard-api:latest,ImageRepositoryType="ECR"}
 
     - name: Deploy App Runner activity service
       run: |
         aws apprunner update-service \
           --service-arn arn:aws:apprunner:us-east-1:${{ env.AWS_ACCOUNT_ID }}:service/pulseboard-activity-service \
-          --source-configuration ImageRepository={
-              ImageIdentifier=$ECR_REGISTRY/pulseboard-activity-service:latest,
-              ImageRepositoryType="ECR"
-          }
+          --source-configuration ImageRepository={ImageIdentifier=$ECR_REGISTRY/pulseboard-activity-service:latest,ImageRepositoryType="ECR"}
 
     - name: Deploy App Runner analytics service
       run: |
         aws apprunner update-service \
           --service-arn arn:aws:apprunner:us-east-1:${{ env.AWS_ACCOUNT_ID }}:service/pulseboard-analytics-service \
-          --source-configuration ImageRepository={
-              ImageIdentifier=$ECR_REGISTRY/pulseboard-analytics-service:latest,
-              ImageRepositoryType="ECR"
-          }
+          --source-configuration ImageRepository={ImageIdentifier=$ECR_REGISTRY/pulseboard-analytics-service:latest,ImageRepositoryType="ECR"}
