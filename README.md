@@ -5,6 +5,9 @@
 PulseBoard is a full-stack, event-driven analytics system that tracks team productivity in real time.
 It demonstrates how modern systems decouple **event ingestion** from **analytics processing** using queues, background workers, caching, and microservices.
 
+
+<img width="1591" height="755" alt="image" src="https://github.com/user-attachments/assets/0d9ded39-86e6-41e1-a500-28112dad90e6" />
+
 ---
 
 # 🚀 Features
